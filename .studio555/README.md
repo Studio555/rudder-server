@@ -32,3 +32,7 @@ The operator first provisions the OIDC publisher from `s555-iac` and sets these 
 Promote the published digest together with the tested transformer digest in `Pulumi.rudderstack.yaml`, enable `preserveIntegerPrecision`, and inspect `pulumi preview -s rudderstack --non-interactive --diff`. Apply only after the isolated canary passes. Existing rounded jobs and warehouse rows are not repaired by this patch.
 
 The upstream `make lint` command includes actionlint checks on inherited workflows that currently fail shellcheck. Studio555 CI runs the complete Go lint check and actionlint on its own workflow separately. Security scans remain required.
+
+## Inherited security baseline
+
+The selected upstream dependencies and Go 1.27.1 runtime have known vulnerabilities. `govulncheck` reports 16 reachable advisories, including Go 1.27.2 / x/net 0.60 fixes and advisories without a published fix in Snowflake/Avro. No dependency versions changed in this patch. CI retains the upstream scan as a report; precision tests, Go lint, workflow lint and changed-commit secret scanning are blocking. Resolve or explicitly review the upstream security baseline before production promotion.
