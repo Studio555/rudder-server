@@ -130,6 +130,10 @@ linters:
           - staticcheck
         path: warehouse/integrations/clickhouse/driver.go
         text: 'SA1019: .*Options\)\.Debug is deprecated'
+      - linters:
+          - staticcheck
+        path: services/streammanager/bqstream/bqstreammanager_client.go
+        text: 'SA1019: .*(ConfigureTransports|ReadIdleTimeout) is deprecated'
     paths:
       - third_party$
       - builtin$
