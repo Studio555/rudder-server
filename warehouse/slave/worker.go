@@ -21,6 +21,7 @@ import (
 	"github.com/rudderlabs/rudder-go-kit/stats"
 	obskit "github.com/rudderlabs/rudder-observability-kit/go/labels"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/services/notifier"
 	"github.com/rudderlabs/rudder-server/utils/misc"
 	"github.com/rudderlabs/rudder-server/warehouse/bcm"
@@ -62,6 +63,7 @@ type worker struct {
 	refreshClaimJitter time.Duration
 
 	config struct {
+		preserveIntegerPrecision            bool
 		maxStagingFileReadBufferCapacityInK config.ValueLoader[int]
 		maxConcurrentStagingFiles           config.ValueLoader[int]
 		claimRefreshInterval                config.ValueLoader[time.Duration]
@@ -93,6 +95,7 @@ func newWorker(
 	s := &worker{}
 
 	s.conf = conf
+	s.config.preserveIntegerPrecision = conf.GetBoolVar(false, integerprecision.ConfigKey)
 	s.log = logger
 	s.statsFactory = statsFactory
 	s.notifier = notifier
@@ -304,7 +307,7 @@ func (w *worker) processSingleStagingFile(
 			releaseWriter    func()
 		)
 
-		if err := jsonrs.Unmarshal(lineBytes, &batchRouterEvent); err != nil {
+		if err := integerprecision.Unmarshal(lineBytes, &batchRouterEvent, w.config.preserveIntegerPrecision); err != nil {
 			jr.logger.Warnn("Failed to unmarshal line from staging file to BatchRouterEvent",
 				logger.NewIntField("stagingFileID", stagingFile.ID),
 				obskit.Error(err),
@@ -392,20 +395,29 @@ func (w *worker) processSingleStagingFile(
 				}
 			}
 
+			var precisionError error
 			if columnType == model.IntDataType || columnType == model.BigIntDataType {
-				floatVal, ok := columnVal.(float64)
-				if !ok {
-					eventLoader.AddEmptyColumn(columnName)
-					continue
+				if w.config.preserveIntegerPrecision {
+					var exact int64
+					exact, precisionError = integerprecision.Int64(columnVal)
+					if precisionError == nil {
+						columnVal = exact
+					}
+				} else {
+					floatVal, ok := columnVal.(float64)
+					if !ok {
+						eventLoader.AddEmptyColumn(columnName)
+						continue
+					}
+					columnVal = int(floatVal)
 				}
-				columnVal = int(floatVal)
 			}
 
 			dataTypeInSchema, ok := job.UploadSchema[tableName][columnName]
 
 			violatedConstraints := w.constraintsManager.ViolatedConstraints(job.DestinationType, &batchRouterEvent, columnName)
 
-			if ok && ((columnType != dataTypeInSchema) || (violatedConstraints.IsViolated)) {
+			if precisionError != nil || (ok && ((columnType != dataTypeInSchema) || (violatedConstraints.IsViolated))) {
 				newColumnVal, convError := HandleSchemaChange(
 					w.log,
 					dataTypeInSchema,
@@ -413,6 +425,9 @@ func (w *worker) processSingleStagingFile(
 					columnVal,
 				)
 
+				if precisionError != nil {
+					convError = precisionError
+				}
 				if convError != nil || violatedConstraints.IsViolated {
 					var reason string
 					if violatedConstraints.IsViolated {
@@ -445,6 +460,13 @@ func (w *worker) processSingleStagingFile(
 				}
 
 				columnVal = newColumnVal
+			}
+
+			if number, ok := columnVal.(integerprecision.Number); ok && columnType == model.FloatDataType {
+				columnVal, err = number.Float64()
+				if err != nil {
+					return fmt.Errorf("converting float column %s: %w", columnName, err)
+				}
 			}
 
 			// Special handling for JSON arrays
@@ -641,6 +663,10 @@ func HandleSchemaChange(log logger.Logger, existingDataType, inferredDataType mo
 		err          error
 	)
 
+	if number, ok := value.(integerprecision.Number); ok && (existingDataType == model.IntDataType || existingDataType == model.BigIntDataType) {
+		return integerprecision.Int64(number)
+	}
+
 	if existingDataType == model.StringDataType || existingDataType == model.TextDataType {
 		// only stringify if the previous type is non-string/text/json
 		if inferredDataType != model.StringDataType && inferredDataType != model.TextDataType && inferredDataType != model.JSONDataType {
@@ -652,6 +678,8 @@ func HandleSchemaChange(log logger.Logger, existingDataType, inferredDataType mo
 		// All warehouse destinations currently support int to float coercion.
 		// value should be float (go json unmarshals all numbers as float64), unless explicitly converted to int. Keeping logic agnostic in this function.
 		switch v := value.(type) {
+		case integerprecision.Number:
+			newColumnVal, err = v.Float64()
 		case int:
 			newColumnVal = float64(v)
 		case int32:

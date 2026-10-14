@@ -1459,6 +1459,20 @@ var _ = Describe("Gateway", func() {
 			Expect(err).To(BeNil())
 		})
 
+		It("preserves int64 JSON tokens before writing gateway jobs", func() {
+			gateway.conf.preserveIntegerPrecision = true
+			req := &webRequestT{
+				reqType: "batch", authContext: arctx, done: make(chan<- string), userIDHeader: userIDHeader,
+				requestPayload: []byte(`{"batch":[{"type":"track","userId":"precision","properties":{"id":9223372036854775807,"negative":-9223372036854775808,"nested":[9007199254740993]}}]}`),
+			}
+			jobData, err := gateway.getJobDataFromRequest(req)
+			Expect(err).To(BeNil())
+			Expect(jobData.jobs).To(HaveLen(1))
+			Expect(string(jobData.jobs[0].EventPayload)).To(ContainSubstring(`"id":9223372036854775807`))
+			Expect(string(jobData.jobs[0].EventPayload)).To(ContainSubstring(`"negative":-9223372036854775808`))
+			Expect(string(jobData.jobs[0].EventPayload)).To(ContainSubstring(`"nested":[9007199254740993]`))
+		})
+
 		It("returns invalid JSON in case of invalid JSON payload", func() {
 			req := &webRequestT{
 				reqType:        "batch",

@@ -21,6 +21,7 @@ import (
 	"github.com/rudderlabs/rudder-go-kit/stats"
 	obskit "github.com/rudderlabs/rudder-observability-kit/go/labels"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	transformerclient "github.com/rudderlabs/rudder-server/internal/transformer-client"
 	transformerutils "github.com/rudderlabs/rudder-server/processor/internal/transformer"
 	"github.com/rudderlabs/rudder-server/processor/types"
@@ -41,10 +42,11 @@ func WithClient(client transformerclient.Client) Opt {
 // Client handles source hydration transformations
 type Client struct {
 	config struct {
-		sourceHydrationURL      string
-		maxRetry                config.ValueLoader[int]
-		failOnError             config.ValueLoader[bool]
-		maxRetryBackoffInterval config.ValueLoader[time.Duration]
+		preserveIntegerPrecision bool
+		sourceHydrationURL       string
+		maxRetry                 config.ValueLoader[int]
+		failOnError              config.ValueLoader[bool]
+		maxRetryBackoffInterval  config.ValueLoader[time.Duration]
 		// Maximum time to wait before stopping retries
 		maxEscapedTimeIncludingRetries config.ValueLoader[time.Duration]
 		logLongRunningTransformAfter   time.Duration
@@ -60,6 +62,7 @@ type Client struct {
 func New(conf *config.Config, log logger.Logger, stat stats.Stats, opts ...Opt) *Client {
 	handle := &Client{}
 	handle.conf = conf
+	handle.config.preserveIntegerPrecision = conf.GetBoolVar(false, integerprecision.ConfigKey)
 	handle.log = log
 	handle.stat = stat
 	handle.client = transformerclient.NewClient("SourceHydration", transformerutils.TransformerClientConfig(conf, "SourceHydration"))
@@ -187,7 +190,7 @@ func (c *Client) sendBatch(ctx context.Context, url string, source types.SrcHydr
 	}
 
 	var response types.SrcHydrationResponse
-	err = jsonrs.Unmarshal(respData, &response)
+	err = integerprecision.Unmarshal(respData, &response, c.config.preserveIntegerPrecision)
 	if err != nil {
 		return response, err
 	}

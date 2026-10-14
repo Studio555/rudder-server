@@ -17,6 +17,7 @@ import (
 	"github.com/rudderlabs/rudder-go-kit/logger"
 	"github.com/rudderlabs/rudder-go-kit/stats"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	embeddedutils "github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded"
 	"github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded/warehouse/internal/model"
 	"github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded/warehouse/internal/response"
@@ -72,6 +73,7 @@ func New(conf *config.Config, logger logger.Logger, statsFactory stats.Stats, op
 	t.stats.mismatchedEvents = t.statsFactory.NewStat("warehouse_dest_transform_mismatched_events", stats.HistogramType)
 	t.stats.comparisonTime = t.statsFactory.NewStat("warehouse_dest_transform_comparison_time", stats.TimerType)
 
+	t.config.preserveIntegerPrecision = conf.GetBoolVar(false, integerprecision.ConfigKey)
 	t.config.enableIDResolution = conf.GetReloadableBoolVar(false, "Warehouse.enableIDResolution")
 	t.config.populateSrcDestInfoInContext = conf.GetReloadableBoolVar(true, "WH_POPULATE_SRC_DEST_INFO_IN_CONTEXT")
 	t.config.maxColumnsInEvent = conf.GetReloadableIntVar(1600, 1, "WH_MAX_COLUMNS_IN_EVENT")
@@ -153,6 +155,9 @@ func (t *Transformer) Transform(_ context.Context, clientEvents []types.Transfor
 }
 
 func (t *Transformer) processWarehouseMessage(cache *cache, event *types.TransformerEvent) ([]map[string]any, error) {
+	if err := integerprecision.ValidateIntegers(map[string]any(event.Message)); err != nil {
+		return nil, response.NewTransformerError(err.Error(), http.StatusBadRequest)
+	}
 	wEvent := wtypes.New(event, t.uuidGenerator, t.now)
 	if err := t.checkValidContext(wEvent); err != nil {
 		return nil, fmt.Errorf("checking valid context: %w", err)
@@ -198,12 +203,13 @@ func (t *Transformer) handleEvent(event *wtypes.TransformerEvent, cache *cache) 
 	eventType := strings.ToLower(event.Metadata.EventType)
 
 	tec := &transformEventContext{
-		event:         event,
-		intrOpts:      &intrOpts,
-		destOpts:      &destOpts,
-		jsonPathsInfo: &jsonPathsInfo,
-		cache:         cache,
-		sorter:        t.sorter,
+		preserveIntegerPrecision: t.config.preserveIntegerPrecision,
+		event:                    event,
+		intrOpts:                 &intrOpts,
+		destOpts:                 &destOpts,
+		jsonPathsInfo:            &jsonPathsInfo,
+		cache:                    cache,
+		sorter:                   t.sorter,
 	}
 
 	switch eventType {

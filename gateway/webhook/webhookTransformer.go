@@ -23,6 +23,7 @@ import (
 	backendconfig "github.com/rudderlabs/rudder-server/backend-config"
 	"github.com/rudderlabs/rudder-server/gateway/response"
 	gwtypes "github.com/rudderlabs/rudder-server/gateway/types"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/services/transformer"
 	"github.com/rudderlabs/rudder-server/utils/httputil"
 	"github.com/rudderlabs/rudder-server/utils/misc"
@@ -294,7 +295,7 @@ func (bt *batchWebhookTransformerT) transform(events [][]byte, sourceTransformer
 		]
 	*/
 	var responses []transformerResponse
-	err = jsonrs.Unmarshal(respBody, &responses)
+	err = integerprecision.Unmarshal(respBody, &responses, bt.webhook.config.preserveIntegerPrecision)
 	if err != nil {
 		statusCode := response.GetErrorStatusCode(response.SourceTransformerInvalidResponseFormat)
 		err := errors.New(response.GetStatus(response.SourceTransformerInvalidResponseFormat))

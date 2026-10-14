@@ -17,6 +17,7 @@ import (
 
 	"github.com/rudderlabs/rudder-go-kit/jsonrs"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded/warehouse/internal/model"
 	"github.com/rudderlabs/rudder-server/processor/types"
 	"github.com/rudderlabs/rudder-server/utils/misc"
@@ -126,14 +127,14 @@ func IsJSONCompatibleStructure(val any) bool {
 	}
 }
 
-func ToJSONCompatible(structVal any) (any, error) {
+func ToJSONCompatible(structVal any, preserveIntegerPrecision ...bool) (any, error) {
 	valJSON, err := jsonrs.Marshal(structVal)
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal json object: %w", err)
 	}
 
 	var t any
-	err = jsonrs.Unmarshal(valJSON, &t)
+	err = integerprecision.Unmarshal(valJSON, &t, len(preserveIntegerPrecision) > 0 && preserveIntegerPrecision[0])
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal json object: %w", err)
 	}

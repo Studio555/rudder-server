@@ -37,6 +37,7 @@ import (
 	"github.com/rudderlabs/rudder-server/gateway/validator"
 	"github.com/rudderlabs/rudder-server/gateway/webhook"
 	"github.com/rudderlabs/rudder-server/gateway/webhook/auth"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/jobsdb"
 	"github.com/rudderlabs/rudder-server/middleware"
 	sourcedebugger "github.com/rudderlabs/rudder-server/services/debugger/source"
@@ -86,6 +87,7 @@ func (gw *Handle) Setup(
 	gw.inFlightRequests = new(sync.WaitGroup)
 
 	// Port where GW is running
+	gw.conf.preserveIntegerPrecision = config.GetBoolVar(false, integerprecision.ConfigKey)
 	gw.conf.webPort = config.GetIntVar(8080, 1, "Gateway.webPort")
 	// Number of incoming requests that are batched before handing off to write workers
 	gw.conf.maxUserWebRequestBatchSize = config.GetIntVar(128, 1, "Gateway.maxUserRequestBatchSize")

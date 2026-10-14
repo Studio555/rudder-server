@@ -1,8 +1,10 @@
 package warehouse
 
 import (
+	"encoding/json"
 	"math/big"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded/warehouse/internal/model"
 	"github.com/rudderlabs/rudder-server/processor/internal/transformer/destination_transformer/embedded/warehouse/internal/utils"
 	whutils "github.com/rudderlabs/rudder-server/warehouse/utils"
@@ -25,6 +27,16 @@ func primitiveType(val any) string {
 	switch v := val.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
 		return model.IntDataType
+	case integerprecision.Number:
+		if integerprecision.IsInteger(json.Number(v)) {
+			return model.IntDataType
+		}
+		return model.FloatDataType
+	case json.Number:
+		if integerprecision.IsInteger(v) {
+			return model.IntDataType
+		}
+		return model.FloatDataType
 	case float64:
 		return getFloatType(v)
 	case float32:

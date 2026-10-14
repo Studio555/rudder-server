@@ -1,0 +1,12 @@
+{
+  "runId": "20261014080829",
+  "table": "s555-data.ingress_nonprod.precision_canary_20261014080829",
+  "serverBase": "9b06b87c9c0560fc5271d1872a5bc572cd3c1d62",
+  "transformerBase": "d147847af99af926238c9d90d8030bf7ddea98c3",
+  "pipeline": "gateway -> isolated PostgreSQL jobsdb -> processor -> JavaScript IP-removal transformation -> Go warehouse transformation -> GCS staging -> BigQuery",
+  "expected": [-9223372036854775808, 9007199254740991, 9007199254740993, 9223372036854775807],
+  "actual": [-9223372036854775808, 9007199254740991, 9007199254740993, 9223372036854775807],
+  "exact": true,
+  "synthetic": true,
+  "productionTrafficChanged": false
+}

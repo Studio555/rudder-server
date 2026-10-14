@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rudderlabs/rudder-go-kit/jsonrs"
 	"github.com/rudderlabs/rudder-go-kit/logger"
 	"github.com/rudderlabs/rudder-go-kit/stats"
 	obskit "github.com/rudderlabs/rudder-observability-kit/go/labels"
 
 	backendconfig "github.com/rudderlabs/rudder-server/backend-config"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/jobsdb"
 	"github.com/rudderlabs/rudder-server/processor/types"
 	"github.com/rudderlabs/rudder-server/utils/misc"
@@ -199,7 +199,7 @@ func (proc *Handle) procRebuildStage(destinationID string, in subJob) (*transfor
 
 	for _, job := range in.subJobs {
 		var payload procJobPayload
-		if err := jsonrs.Unmarshal(job.EventPayload, &payload); err != nil {
+		if err := integerprecision.Unmarshal(job.EventPayload, &payload, proc.config.preserveIntegerPrecision); err != nil {
 			proc.logger.Errorn("Unmarshalling proc job payload", obskit.Error(err), logger.NewIntField("jobId", job.JobID))
 			statusList = append(statusList, procJobStatus(job, destinationID, jobsdb.Aborted.State, fmt.Sprintf(`{"error":%q}`, err.Error())))
 			continue

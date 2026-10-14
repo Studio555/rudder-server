@@ -24,6 +24,7 @@ import (
 	"github.com/rudderlabs/rudder-go-kit/stats"
 	obskit "github.com/rudderlabs/rudder-observability-kit/go/labels"
 
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	transformerclient "github.com/rudderlabs/rudder-server/internal/transformer-client"
 	"github.com/rudderlabs/rudder-server/processor/integrations"
 	transformerutils "github.com/rudderlabs/rudder-server/processor/internal/transformer"
@@ -90,6 +91,7 @@ func WithMaxRetry(maxRetry config.ValueLoader[int]) Opt {
 func New(conf *config.Config, log logger.Logger, stat stats.Stats, opts ...Opt) *Client {
 	handle := &Client{}
 	handle.conf = conf
+	handle.config.preserveIntegerPrecision = conf.GetBoolVar(false, integerprecision.ConfigKey)
 	handle.log = log.Child("user_transformer")
 	handle.stat = stat
 	handle.client = transformerclient.NewClient("UserTransformer", transformerutils.TransformerClientConfig(conf, "UserTransformer"))
@@ -119,6 +121,7 @@ func New(conf *config.Config, log logger.Logger, stat stats.Stats, opts ...Opt) 
 
 type Client struct {
 	config struct {
+		preserveIntegerPrecision      bool
 		userTransformationURL         string
 		forMirroring                  bool
 		maxRetry                      config.ValueLoader[int]
@@ -341,7 +344,7 @@ func (u *Client) sendBatch(
 	var transformerResponses []types.TransformerResponse
 	switch statusCode {
 	case http.StatusOK:
-		err = jsonrs.Unmarshal(respData, &transformerResponses)
+		err = integerprecision.Unmarshal(respData, &transformerResponses, u.config.preserveIntegerPrecision)
 		// This is returned by our JS engine so should be parseable
 		// Panic the processor to avoid replays
 		if err != nil {

@@ -40,6 +40,7 @@ import (
 	gwtypes "github.com/rudderlabs/rudder-server/gateway/types"
 	"github.com/rudderlabs/rudder-server/gateway/webhook"
 	"github.com/rudderlabs/rudder-server/gateway/webhook/auth"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/jobsdb"
 	sourcedebugger "github.com/rudderlabs/rudder-server/services/debugger/source"
 	"github.com/rudderlabs/rudder-server/services/rsources"
@@ -53,6 +54,7 @@ type messageValidator interface {
 }
 
 type handleConfig struct {
+	preserveIntegerPrecision                                                          bool
 	webPort, maxUserWebRequestWorkerProcess, maxDBWriterProcess                       int
 	maxUserWebRequestBatchSize, maxDBBatchSize, maxHeaderBytes, maxConcurrentRequests int
 	userWebRequestBatchTimeout, dbBatchWriteTimeout                                   config.ValueLoader[time.Duration]
@@ -376,10 +378,19 @@ func (gw *Handle) getJobDataFromRequest(req *webRequestT) (jobData *jobFromReq, 
 
 	isUserSuppressed := gw.memoizedIsUserSuppressed()
 	for idx, v := range eventsBatch {
-		toSet, ok := v.Value().(map[string]any)
-		if !ok {
-			err = errors.New((response.NotRudderEvent))
-			return jobData, err
+		var toSet map[string]any
+		if gw.conf.preserveIntegerPrecision {
+			if err = integerprecision.Unmarshal([]byte(v.Raw), &toSet, true); err != nil || toSet == nil {
+				err = errors.New((response.NotRudderEvent))
+				return jobData, err
+			}
+		} else {
+			var ok bool
+			toSet, ok = v.Value().(map[string]any)
+			if !ok {
+				err = errors.New((response.NotRudderEvent))
+				return jobData, err
+			}
 		}
 
 		anonIDFromReq := strings.TrimSpace(sanitize.Unicode(stringify.Any(toSet["anonymousId"])))

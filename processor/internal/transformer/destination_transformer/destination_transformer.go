@@ -23,6 +23,7 @@ import (
 	obskit "github.com/rudderlabs/rudder-observability-kit/go/labels"
 
 	backendconfig "github.com/rudderlabs/rudder-server/backend-config"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	transformerclient "github.com/rudderlabs/rudder-server/internal/transformer-client"
 	"github.com/rudderlabs/rudder-server/processor/integrations"
 	transformerutils "github.com/rudderlabs/rudder-server/processor/internal/transformer"
@@ -68,6 +69,7 @@ func WithFeatureService(featureService transformerfs.FeaturesService) Opt {
 func New(conf *config.Config, log logger.Logger, stat stats.Stats, opts ...Opt) *Client {
 	handle := &Client{}
 	handle.conf = conf
+	handle.config.preserveIntegerPrecision = conf.GetBoolVar(false, integerprecision.ConfigKey)
 	handle.log = log
 	handle.stat = stat
 	handle.client = transformerclient.NewClient("DestinationTransformer", transformerutils.TransformerClientConfig(conf, "DestinationTransformer"))
@@ -102,12 +104,13 @@ func New(conf *config.Config, log logger.Logger, stat stats.Stats, opts ...Opt) 
 
 type Client struct {
 	config struct {
-		destTransformationURL   string
-		maxRetry                config.ValueLoader[int]
-		failOnError             config.ValueLoader[bool]
-		maxRetryBackoffInterval config.ValueLoader[time.Duration]
-		timeoutDuration         time.Duration
-		batchSize               config.ValueLoader[int]
+		preserveIntegerPrecision bool
+		destTransformationURL    string
+		maxRetry                 config.ValueLoader[int]
+		failOnError              config.ValueLoader[bool]
+		maxRetryBackoffInterval  config.ValueLoader[time.Duration]
+		timeoutDuration          time.Duration
+		batchSize                config.ValueLoader[int]
 
 		maxLoggedEvents config.ValueLoader[int]
 
@@ -251,7 +254,7 @@ func (d *Client) sendBatch(ctx context.Context, url string, labels types.Transfo
 	var transformerResponses []types.TransformerResponse
 	switch statusCode {
 	case http.StatusOK:
-		err = jsonrs.Unmarshal(respData, &transformerResponses)
+		err = integerprecision.Unmarshal(respData, &transformerResponses, d.config.preserveIntegerPrecision)
 		// This is returned by our JS engine so should  be parsable
 		// Panic the processor to avoid replays
 		if err != nil {

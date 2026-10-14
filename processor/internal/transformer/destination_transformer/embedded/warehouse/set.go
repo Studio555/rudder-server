@@ -36,7 +36,7 @@ func setDataAndMetadataFromInput(
 			continue
 		}
 		if utils.IsJSONCompatibleStructure(val) {
-			valMap, err := utils.ToJSONCompatible(val)
+			valMap, err := utils.ToJSONCompatible(val, tec.preserveIntegerPrecision)
 			if err != nil {
 				return fmt.Errorf("could not convert struct to map: %w", err)
 			}

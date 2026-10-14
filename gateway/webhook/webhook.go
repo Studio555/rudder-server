@@ -71,6 +71,7 @@ type HandleT struct {
 	backgroundCancel context.CancelFunc
 
 	config struct {
+		preserveIntegerPrecision   bool
 		maxReqSize                 config.ValueLoader[int]
 		webhookBatchTimeout        config.ValueLoader[time.Duration]
 		maxWebhookBatchSize        config.ValueLoader[int]

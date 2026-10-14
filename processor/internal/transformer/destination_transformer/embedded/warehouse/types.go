@@ -27,6 +27,7 @@ type (
 			mismatchedEvents stats.Histogram
 		}
 		config struct {
+			preserveIntegerPrecision     bool
 			enableIDResolution           config.ValueLoader[bool]
 			populateSrcDestInfoInContext config.ValueLoader[bool]
 			maxColumnsInEvent            config.ValueLoader[int]
@@ -63,12 +64,13 @@ type (
 	}
 
 	transformEventContext struct {
-		event         *wtypes.TransformerEvent
-		intrOpts      *intrOptions
-		destOpts      *destOptions
-		jsonPathsInfo *jsonPathInfo
-		cache         *cache
-		sorter        func([]string) []string
+		preserveIntegerPrecision bool
+		event                    *wtypes.TransformerEvent
+		intrOpts                 *intrOptions
+		destOpts                 *destOptions
+		jsonPathsInfo            *jsonPathInfo
+		cache                    *cache
+		sorter                   func([]string) []string
 	}
 
 	intrOptions struct {

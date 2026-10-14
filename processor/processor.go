@@ -37,6 +37,7 @@ import (
 	"github.com/rudderlabs/rudder-server/enterprise/activationrecords"
 	"github.com/rudderlabs/rudder-server/enterprise/trackedusers"
 	"github.com/rudderlabs/rudder-server/internal/enricher"
+	"github.com/rudderlabs/rudder-server/internal/integerprecision"
 	"github.com/rudderlabs/rudder-server/jobsdb"
 	"github.com/rudderlabs/rudder-server/processor/delayed"
 	"github.com/rudderlabs/rudder-server/processor/eventfilter"
@@ -161,6 +162,7 @@ type Handle struct {
 		store        kitsync.Limiter
 	}
 	config struct {
+		preserveIntegerPrecision                  bool
 		isolationMode                             isolation.Mode
 		mainLoopTimeout                           time.Duration
 		enablePipelining                          bool
@@ -822,6 +824,7 @@ func (proc *Handle) loadConfig() {
 		defaultPayloadLimit = 20 * bytesize.MB
 	}
 
+	proc.config.preserveIntegerPrecision = proc.conf.GetBoolVar(false, integerprecision.ConfigKey)
 	proc.config.enablePipelining = proc.conf.GetBoolVar(true, "Processor.enablePipelining")
 	proc.config.pipelineBufferedItems = proc.conf.GetIntVar(0, 1, "Processor.pipelineBufferedItems")
 	proc.config.subJobSize = proc.conf.GetIntVar(defaultSubJobSize, 1, "Processor.subJobSize")
@@ -1893,7 +1896,7 @@ func (proc *Handle) preprocessStage(partition string, subJobs subJob, delay time
 
 		parameters := job.Parameters
 		var gatewayBatchEvent types.GatewayBatchRequest
-		if err := jsonrs.Unmarshal(job.EventPayload, &gatewayBatchEvent); err != nil {
+		if err := integerprecision.Unmarshal(job.EventPayload, &gatewayBatchEvent, proc.config.preserveIntegerPrecision); err != nil {
 			if span != nil {
 				span.SetStatus(stats.SpanStatusError, "cannot unmarshal event payload")
 			}
@@ -2258,7 +2261,7 @@ func (proc *Handle) preprocessStage(partition string, subJobs subJob, delay time
 		rudderTyperTPID := misc.MapLookup(event.singularEvent, "context", "ruddertyper", "trackingPlanId")
 		rudderTyperTPVersion := misc.MapLookup(event.singularEvent, "context", "ruddertyper", "trackingPlanVersion")
 		if rudderTyperTPID != nil && rudderTyperTPVersion != nil && rudderTyperTPID == trackingPlanID {
-			if version, ok := rudderTyperTPVersion.(float64); ok && version > 0 {
+			if version, err := integerprecision.Int64(rudderTyperTPVersion); err == nil && version > 0 {
 				trackingPlanVersion = int(version)
 			}
 		}
@@ -3543,7 +3546,7 @@ func (proc *Handle) userTransformAndFilter(ctx context.Context, partition, srcAn
 					mirroredResponse := <-utMirroringSanityChecks
 
 					var response types.Response
-					err := jsonrs.Unmarshal(responseCopy, &response)
+					err := integerprecision.Unmarshal(responseCopy, &response, proc.config.preserveIntegerPrecision)
 					if err != nil {
 						proc.logger.Warnn("Cannot unmarshal transformer response", obskit.Error(err))
 						return
@@ -3560,7 +3563,7 @@ func (proc *Handle) userTransformAndFilter(ctx context.Context, partition, srcAn
 						return
 					}
 					var normalizedMirror types.Response
-					if err := jsonrs.Unmarshal(mirroredCopy, &normalizedMirror); err != nil {
+					if err := integerprecision.Unmarshal(mirroredCopy, &normalizedMirror, proc.config.preserveIntegerPrecision); err != nil {
 						proc.logger.Warnn("Cannot unmarshal mirrored response for normalization", obskit.Error(err))
 						return
 					}
